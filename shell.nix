@@ -5,6 +5,7 @@
       rustc
       rust-analyzer
       clippy
+      rustfmt
 
       btrfs-progs
     ];
