@@ -1,6 +1,10 @@
+use binrw::{BinRead, BinWrite};
+
 /// Btrfs Superblock
 ///
 /// Code is derived from https://github.com/kdave/btrfs-progs/blob/master/libbtrfs/ctree.h#L461
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
 pub struct Superblock {
     pub csum: [u8; 32],
     pub fs_uuid: [u8; 16],
@@ -44,12 +48,15 @@ pub struct Superblock {
     pub super_roots: [RootBackup; BTRFS_NUM_BACKUP_ROOTS]
 }
 
+#[allow(dead_code)]
 const BTRFS_SUPER_INFO_SIZE: usize = 4096;
 const BTRFS_LABEL_SIZE: usize = 256;
 const BTRFS_FSID_SIZE: usize = 16;
 const BTRFS_SYSTEM_CHUNK_ARRAY_SIZE: usize = 2048;
 const BTRFS_NUM_BACKUP_ROOTS: usize = 4;
 
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
 pub struct DevItem {
     pub devid: u64,
     pub total_bytes: u64,
@@ -68,6 +75,8 @@ pub struct DevItem {
     pub fsid: [u8; 16]
 }
 
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
 pub struct RootBackup {
     pub tree_root: u64,
     pub tree_root_gen: u64,
