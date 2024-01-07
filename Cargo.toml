@@ -8,5 +8,6 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.79"
 binrw = "0.13.3"
+crc32c = "0.6.4"
 env_logger = "0.10.1"
 test-log = "0.2.14"
