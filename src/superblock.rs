@@ -1,9 +1,11 @@
-use binrw::{BinRead, BinWrite};
+use anyhow::Result;
+use binrw::{BinRead, BinWrite, io::Cursor, BinReaderExt};
+use std::{fs::File, os::unix::fs::FileExt};
 
 /// Btrfs Superblock
 ///
 /// Code is derived from https://github.com/kdave/btrfs-progs/blob/master/libbtrfs/ctree.h#L461
-#[derive(BinRead, BinWrite)]
+#[derive(BinRead, BinWrite, Debug)]
 #[brw(little)]
 pub struct Superblock {
     pub csum: [u8; 32],
@@ -48,6 +50,19 @@ pub struct Superblock {
     pub super_roots: [RootBackup; BTRFS_NUM_BACKUP_ROOTS]
 }
 
+impl Superblock {
+    #[allow(dead_code)]
+    /// Read from Block and return Superblock
+    pub fn read_from_block(f: &File) -> Result<Superblock> {
+        let mut buf = [0u8; BTRFS_SUPER_INFO_SIZE];
+        f.read_at(&mut buf, BTRFS_SUPER_POS as u64)?;
+        let mut reader = Cursor::new(buf.to_vec());
+        let sb: Superblock = reader.read_le()?;
+        Ok(sb)
+    }
+}
+
+const BTRFS_SUPER_POS: usize = 0x10000;
 #[allow(dead_code)]
 const BTRFS_SUPER_INFO_SIZE: usize = 4096;
 const BTRFS_LABEL_SIZE: usize = 256;
@@ -55,7 +70,7 @@ const BTRFS_FSID_SIZE: usize = 16;
 const BTRFS_SYSTEM_CHUNK_ARRAY_SIZE: usize = 2048;
 const BTRFS_NUM_BACKUP_ROOTS: usize = 4;
 
-#[derive(BinRead, BinWrite)]
+#[derive(BinRead, BinWrite, Debug)]
 #[brw(little)]
 pub struct DevItem {
     pub devid: u64,
@@ -75,7 +90,7 @@ pub struct DevItem {
     pub fsid: [u8; 16]
 }
 
-#[derive(BinRead, BinWrite)]
+#[derive(BinRead, BinWrite, Debug)]
 #[brw(little)]
 pub struct RootBackup {
     pub tree_root: u64,
@@ -110,4 +125,16 @@ pub struct RootBackup {
     pub csum_root_level: u8,
     /// Use for Future and to align
     unused_8: [u8; 10]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read_superblock() {
+        let f = File::open("./btrfs.img").unwrap();
+        let sb = Superblock::read_from_block(&f).unwrap();
+        println!("{:?}", sb)
+    }
 }
