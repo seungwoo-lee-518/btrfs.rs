@@ -4,6 +4,7 @@
       cargo
       rustc
       rust-analyzer
+      clippy
 
       btrfs-progs
     ];
