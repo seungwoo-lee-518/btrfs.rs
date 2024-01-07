@@ -9,7 +9,7 @@ use std::{fs::File, os::unix::fs::FileExt};
 #[brw(little)]
 pub struct Superblock {
     pub csum: [u8; 32],
-    pub fs_uuid: [u8; 16],
+    pub fs_uuid: [u8; BTRFS_FSID_SIZE],
     pub bytenr: u64,
     pub flags: u64,
     pub magic: [u8; 8],
@@ -102,12 +102,16 @@ const BTRFS_SUPER_POS: usize = 0x10000;
 #[allow(dead_code)]
 const BTRFS_SUPER_INFO_SIZE: usize = 4096;
 const BTRFS_LABEL_SIZE: usize = 256;
+const BTRFS_UUID_SIZE: usize = 16;
 const BTRFS_FSID_SIZE: usize = 16;
 const BTRFS_SYSTEM_CHUNK_ARRAY_SIZE: usize = 2048;
 const BTRFS_NUM_BACKUP_ROOTS: usize = 4;
 
 #[derive(PartialEq, Eq, Debug)]
 #[allow(dead_code)]
+/// CSUM Types
+///
+/// Code is Derived from https://github.com/kdave/btrfs-progs/blob/master/libbtrfs/ctree.h#L165
 pub enum CSUMType {
     Crc32 = 0,
     Xxhash = 1,
@@ -117,6 +121,9 @@ pub enum CSUMType {
 
 #[derive(BinRead, BinWrite, Clone, Copy, Debug)]
 #[brw(little)]
+/// Dev Item
+///
+/// Code is Derived from https://github.com/kdave/btrfs-progs/blob/master/libbtrfs/ctree.h#L258
 pub struct DevItem {
     pub devid: u64,
     pub total_bytes: u64,
@@ -125,18 +132,23 @@ pub struct DevItem {
     pub io_width: u32,
     pub sector_size: u32,
     /// Type
+    ///
+    /// https://github.com/kdave/btrfs-progs/blob/master/libbtrfs/ctree.h#L278
     pub item_type: u64,
     pub generation: u64,
     pub start_offset: u64,
     pub dev_group: u32,
     pub seek_speed: u8,
     pub bandwidth: u8,
-    pub uuid: [u8; 16],
-    pub fsid: [u8; 16],
+    pub uuid: [u8; BTRFS_UUID_SIZE],
+    pub fsid: [u8; BTRFS_FSID_SIZE],
 }
 
 #[derive(BinRead, BinWrite, Clone, Copy, Debug)]
 #[brw(little)]
+/// Root Backup
+///
+/// Code is Derived from https://github.com/kdave/btrfs-progs/blob/master/libbtrfs/ctree.h#L419
 pub struct RootBackup {
     pub tree_root: u64,
     pub tree_root_gen: u64,
@@ -177,6 +189,7 @@ mod tests {
     use super::*;
 
     #[test]
+    /// Test to Read Superblock
     fn read_superblock() {
         let f = File::open("./btrfs.img").unwrap();
         let sb = Superblock::read_from_block(&f).unwrap();
@@ -189,6 +202,7 @@ mod tests {
     }
 
     #[test]
+    /// Check CRC32 is Matched
     fn check_crc32_is_equal() {
         let f = File::open("./btrfs.img").unwrap();
         let sb = Superblock::read_from_block(&f).unwrap();
