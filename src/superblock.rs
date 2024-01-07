@@ -1,11 +1,11 @@
-use anyhow::Result;
-use binrw::{BinRead, BinWrite, io::Cursor, BinReaderExt};
+use anyhow::{anyhow, Result};
+use binrw::{io::Cursor, BinRead, BinReaderExt, BinWrite, BinWriterExt};
 use std::{fs::File, os::unix::fs::FileExt};
 
 /// Btrfs Superblock
 ///
 /// Code is derived from https://github.com/kdave/btrfs-progs/blob/master/libbtrfs/ctree.h#L461
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(BinRead, BinWrite, Clone, Copy, Debug)]
 #[brw(little)]
 pub struct Superblock {
     pub csum: [u8; 32],
@@ -47,7 +47,8 @@ pub struct Superblock {
     reserved8: [u8; 7],
     reserved: [u64; 24],
     pub sys_chunk_array: [u8; BTRFS_SYSTEM_CHUNK_ARRAY_SIZE],
-    pub super_roots: [RootBackup; BTRFS_NUM_BACKUP_ROOTS]
+    pub super_roots: [RootBackup; BTRFS_NUM_BACKUP_ROOTS],
+    padding: [u8; 565],
 }
 
 impl Superblock {
@@ -60,6 +61,41 @@ impl Superblock {
         let sb: Superblock = reader.read_le()?;
         Ok(sb)
     }
+
+    #[allow(dead_code)]
+    pub fn to_bytes(self) -> Result<[u8; BTRFS_SUPER_INFO_SIZE]> {
+        let mut writer = Cursor::new(Vec::new());
+        writer.write_le(&self)?;
+
+        let v = writer.into_inner().to_vec();
+
+        if v.len().ne(&BTRFS_SUPER_INFO_SIZE) {
+            return Err(anyhow!("size does not match: {:?}", v.len()));
+        }
+
+        Ok(v.try_into().unwrap())
+    }
+
+    #[allow(dead_code)]
+    /// Get CSUM Type
+    pub fn get_csum_type(self) -> CSUMType {
+        match self.csum_type {
+            1 => CSUMType::Xxhash,
+            2 => CSUMType::Sha256,
+            3 => CSUMType::Blake2,
+            _ => CSUMType::Crc32,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn get_crc32(self) -> Result<u32> {
+        if self.get_csum_type().ne(&CSUMType::Crc32) {
+            return Err(anyhow!("csum_type is not crc32"));
+        }
+        let crc_value: [u8; 4] = self.csum[0..4].try_into()?;
+        let v: u32 = u32::from_le_bytes(crc_value);
+        Ok(v)
+    }
 }
 
 const BTRFS_SUPER_POS: usize = 0x10000;
@@ -70,7 +106,16 @@ const BTRFS_FSID_SIZE: usize = 16;
 const BTRFS_SYSTEM_CHUNK_ARRAY_SIZE: usize = 2048;
 const BTRFS_NUM_BACKUP_ROOTS: usize = 4;
 
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(PartialEq, Eq, Debug)]
+#[allow(dead_code)]
+pub enum CSUMType {
+    Crc32 = 0,
+    Xxhash = 1,
+    Sha256 = 2,
+    Blake2 = 3,
+}
+
+#[derive(BinRead, BinWrite, Clone, Copy, Debug)]
 #[brw(little)]
 pub struct DevItem {
     pub devid: u64,
@@ -87,10 +132,10 @@ pub struct DevItem {
     pub seek_speed: u8,
     pub bandwidth: u8,
     pub uuid: [u8; 16],
-    pub fsid: [u8; 16]
+    pub fsid: [u8; 16],
 }
 
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(BinRead, BinWrite, Clone, Copy, Debug)]
 #[brw(little)]
 pub struct RootBackup {
     pub tree_root: u64,
@@ -124,7 +169,7 @@ pub struct RootBackup {
     pub dev_root_level: u8,
     pub csum_root_level: u8,
     /// Use for Future and to align
-    unused_8: [u8; 10]
+    unused_8: [u8; 10],
 }
 
 #[cfg(test)]
@@ -135,6 +180,11 @@ mod tests {
     fn read_superblock() {
         let f = File::open("./btrfs.img").unwrap();
         let sb = Superblock::read_from_block(&f).unwrap();
-        println!("{:?}", sb)
+        let csum_type = sb.get_csum_type();
+        let crc32_value = sb.get_crc32().unwrap();
+        let b = sb.to_bytes().unwrap();
+        assert_eq!(csum_type, CSUMType::Crc32);
+        assert_ne!(crc32_value, 0);
+        assert_eq!(b.len(), BTRFS_SUPER_INFO_SIZE);
     }
 }
