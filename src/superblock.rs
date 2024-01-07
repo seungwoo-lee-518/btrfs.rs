@@ -187,4 +187,16 @@ mod tests {
         assert_ne!(crc32_value, 0);
         assert_eq!(b.len(), BTRFS_SUPER_INFO_SIZE);
     }
+
+    #[test]
+    fn check_crc32_is_equal() {
+        let f = File::open("./btrfs.img").unwrap();
+        let sb = Superblock::read_from_block(&f).unwrap();
+        let crc32_value = sb.get_crc32().unwrap();
+        let b = sb.to_bytes().unwrap();
+
+        let crc = crc32c::crc32c(&b[32..]);
+
+        assert_eq!(crc32_value, crc)
+    }
 }
